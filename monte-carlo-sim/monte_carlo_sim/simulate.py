@@ -1,17 +1,19 @@
+from __future__ import annotations
+
 import concurrent.futures as cf
 import math
-from os import PathLike
-from pathlib import Path
 import random
-import tomllib 
 
 import matplotlib.pyplot as plt
-from scipy import constants
 
-from monte_carlo_sim.handle_xyz import Frame, Particle, read_xyz
+from monte_carlo_sim.handle_xyz import Frame, Particle, load_start_structure
 
 
-def simulate(start, topology, steps, max_steps=None, T: float = 300.):
+BOLTZMANN = 1.380649e-23  # J/K
+
+
+def simulate(start: Frame, topology, steps: int, max_steps: int|None = None, temperature: float = 300.):
+    """Run a Monte-Carlo simulation."""
     if not max_steps:
         max_steps = 10*steps
 
@@ -28,9 +30,9 @@ def simulate(start, topology, steps, max_steps=None, T: float = 300.):
         trial_energy = get_conformation_energy(trial_structure, topology)
 
         if metropolis_criterion(
-                old_energy=last_energy, 
-                new_energy=trial_energy, 
-                T=T,
+                old_energy=last_energy,
+                new_energy=trial_energy,
+                temperature=temperature,
             ):
             last_energy = trial_energy
             n_frame = len(trajectory)
@@ -47,7 +49,7 @@ def simulate(start, topology, steps, max_steps=None, T: float = 300.):
 
 def perturbe_structure(particles: list[Particle], step_length: float = 0.1) -> list[Particle]:
     particles = particles.copy()
-    
+
     x, y, z = random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)
     length = math.sqrt(x*x + y*y + z*z) / step_length
 
@@ -63,11 +65,11 @@ def perturbe_structure(particles: list[Particle], step_length: float = 0.1) -> l
     return particles
 
 
-def metropolis_criterion(new_energy, old_energy, T: float = 300.):
+def metropolis_criterion(new_energy, old_energy, temperature: float = 300.):
     de = new_energy - old_energy
     if de <= 0:
-        return True 
-    metropolis = math.exp(-de / (constants.k * T))
+        return True
+    metropolis = math.exp(-de / (BOLTZMANN * temperature))
     return metropolis > random.random()
 
 
@@ -99,33 +101,6 @@ def get_conformation_energy(points: list[Particle], parameters: dict[str, list[l
             except ZeroDivisionError:
                 continue
     return energy
-
-
-def load_topology(parameter_file: str | PathLike, coordinates: list[Particle]) -> dict[str, list[list[float]]]:
-    with open(parameter_file, 'rb') as pf:
-        params = tomllib.load(pf)
-
-    t_eps = [[0. for _ in coordinates] for _ in coordinates]
-    t_r = t_eps.copy()
-    for i, a in enumerate(coordinates):
-       for j, b in enumerate(coordinates[i:], start=i):
-           t_eps[i][j] = t_eps[j][i] = math.sqrt(
-                   params[a.name]['eps'] * params[b.name]['eps']
-                )
-           t_r[i][j] = t_r[j][i] = (params[a.name]['r_min'] + params[b.name]['r_min']) / 2
-    topology = {
-            'r_min' : t_r,
-            'eps': t_eps,
-        }
-    return topology
-
-
-def load_start_structure(filename: str | PathLike, 
-                         parameter_file: str | PathLike = Path(__file__).parent / 'parameters.toml'):
-    with open(filename, 'r') as cf:
-        coordinates = read_xyz(cf)[0]
-    topology = load_topology(parameter_file, coordinates.particles)
-    return coordinates, topology
 
 
 def main():
