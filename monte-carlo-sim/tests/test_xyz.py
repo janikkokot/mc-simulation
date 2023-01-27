@@ -66,7 +66,7 @@ def test_failure_input_header():
     A 5.67 -3.45 2.61
     B 3.91 -1.91 4
     A 3.2 1.2 -12.3""".strip().splitlines()
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         read_xyz(xyz)
 
 
