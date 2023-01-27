@@ -1,6 +1,4 @@
 """Simulation, energy and distance calculations
-
-TODO: refactor simulare function.
 """
 from __future__ import annotations
 
@@ -51,28 +49,30 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
         ...     for particle in frame.particles:
         ...         assert particle.name == 'x'
     """
-    first_frame = handle_xyz.Frame(
-            n_particles=len(start_coordinates),
-            comment='step 0',
-            particles=start_coordinates,
-        )
-    trajectory = [first_frame]
-    last_energy = get_conformation_energy(first_frame.particles, topology)
+    n_particles = len(start_coordinates)
+    energy = get_conformation_energy(start_coordinates, topology)
+    trajectory = [
+            handle_xyz.Frame(
+                n_particles=n_particles,
+                comment=f'step 0, {temperature}, {energy}',
+                particles=start_coordinates,
+                )
+        ]
 
     for _ in range(steps):
         trial_structure = perturbe_structure(trajectory[-1].particles)
         trial_energy = get_conformation_energy(trial_structure, topology)
 
         if metropolis_criterion(
-                old_energy=last_energy,
+                old_energy=energy,
                 new_energy=trial_energy,
                 temperature=temperature,
                 ):
-            last_energy = trial_energy
+            energy = trial_energy
             n_frame = len(trajectory)
             new_frame = handle_xyz.Frame(
-                    n_particles=first_frame.n_particles,
-                    comment=f'step {n_frame}',
+                    n_particles=n_particles,
+                    comment=f'step {n_frame}, {temperature}, {energy}',
                     particles=trial_structure,
                 )
             trajectory.append(new_frame)
