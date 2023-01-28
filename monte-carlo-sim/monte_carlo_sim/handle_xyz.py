@@ -11,7 +11,7 @@ _base_path = Path(__file__).parent
 
 
 class Particle(NamedTuple):
-    """Tuple container to store information about one Particle in the simulation.
+    """Tuple container to store information about a Particle in the simulation.
 
     The Particle tuple impolements the string magic method to format the tuple
     to match the XYZ-file format for Particles.
@@ -49,7 +49,7 @@ class Particle(NamedTuple):
 
 
 class Frame(NamedTuple):
-    """Tuple container to store information about one structure from XYZ-Format.
+    """Tuple container to store information about a structure from XYZ-Format.
 
     A Frame is just one structure / configuration. Multiple of these Frames,
     where the number and order of Particles stays the same then form a
@@ -59,9 +59,9 @@ class Frame(NamedTuple):
     into XYZ-file format more intuitiv.
 
     Args:
-        n_particles (int): number of particles in the Frame / structure
-        comment (str): comment about that Frame / structure
-        particles (list[Particle]): individual particles in this Frame / structure
+        n_particles (int): number of particles in the Frame
+        comment (str): comment about that Frame
+        particles (list[Particle]): individual particles in this Frame
 
     Returns:
         tuple: containing all information associated with one structure.
@@ -94,7 +94,10 @@ class Frame(NamedTuple):
 
 # Particle = namedtuple('Particle', ['name', 'x', 'y', 'z'])
 # Frame = namedtuple('Frame', ['n_particles', 'comment', 'particles'])
-Topology: TypeAlias = dict[str, list[list[float]]]
+Matrix2D: TypeAlias = list[list[float]]
+
+
+Topology: TypeAlias = dict[str, Matrix2D]
 """dictionary, Topology type that matches to a given list of Particles.
 
 The dictionary maps strings denoting the parameter name to a 2D list.
@@ -203,8 +206,8 @@ def generate_topology(coordinates: list[Particle],
         [[2.0, 3.0], [3.0, 4.0]]
 
     """
-    t_eps: list[list[float]] = [[0. for _ in coordinates] for _ in coordinates]
-    t_r: list[list[float]] = [[0. for _ in coordinates] for _ in coordinates]
+    t_eps: Matrix2D = [[0. for _ in coordinates] for _ in coordinates]
+    t_r: Matrix2D = [[0. for _ in coordinates] for _ in coordinates]
     for i, particle_a in enumerate(coordinates):
         for j, particle_b in enumerate(coordinates[i:], start=i):
             _a = parameters[particle_a.name]

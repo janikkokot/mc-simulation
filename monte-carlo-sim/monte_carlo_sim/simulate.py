@@ -1,5 +1,4 @@
-"""Simulation, energy and distance calculations
-"""
+"""Simulation and energy calculations"""
 from __future__ import annotations
 
 # import concurrent.futures as cf
@@ -10,18 +9,21 @@ from typing import Callable
 # import matplotlib.pyplot as plt  # type: ignore
 
 from monte_carlo_sim import handle_xyz
+from monte_carlo_sim import distance as dist
 
 
 BOLTZMANN = 1.380649e-23  # J/K
 """float, Boltzman constant in Joule per Kelvin."""
 
 
-def simulate(start_coordinates: list[handle_xyz.Particle],
-             topology: handle_xyz.Topology,
-             steps: int,
-             temperature: float = 300.,
-             get_step_size: Callable[[bool], float] = lambda _: 0.01,
-             ):
+def simulate(
+        start_coordinates: list[handle_xyz.Particle],
+        topology: handle_xyz.Topology,
+        steps: int,
+        temperature: float = 300.,
+        distance_squared: dist.DistanceFunction = dist.non_periodic_squared,
+        get_step_size: Callable[[bool], float] = lambda _: 0.01,
+        ) -> list[handle_xyz.Frame]:
     """Run a Monte-Carlo simulation.
 
     Args:
@@ -30,6 +32,10 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
             matches the start coordinates
         steps: number of iteration
         temperature: Temperature in Kelvin
+        distance_squared: Callable returning the squared pairwise distances
+            The distances are in Angstrom.
+            This setup allows to switch easily between a periodic and a non-
+            periodic simulation setup.
         get_step_size: Callable returning the step size in Angstrom
             The Callable takes a bool as argument, should be the Metropolis
             criterion results. This allows to have more complex step_sizes,
@@ -58,8 +64,10 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
         ...         assert particle.name == 'x'
     """
     n_particles = len(start_coordinates)
-    energy = get_conformation_energy(start_coordinates, topology)
     step_size = get_step_size(True)
+
+    distances = distance_squared(start_coordinates)
+    energy = get_conformation_energy(distances, topology)
     trajectory = [
             handle_xyz.Frame(
                 n_particles=n_particles,
@@ -69,16 +77,17 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
         ]
 
     while len(trajectory) < steps:
-        trial_structure = perturbe_structure(
+        trial_structure: list[handle_xyz.Particle] = perturbe_structure(
                 particles=trajectory[-1].particles,
                 step_size=step_size,
                 )
-        trial_energy = get_conformation_energy(
-                particles=trial_structure,
+        distances = distance_squared(trial_structure)
+        trial_energy: float = get_conformation_energy(
+                distances=distances,
                 topology=topology
                 )
 
-        accepted = metropolis_criterion(
+        accepted: bool = metropolis_criterion(
                 old_energy=energy,
                 new_energy=trial_energy,
                 temperature=temperature,
@@ -203,28 +212,6 @@ def metropolis_criterion(new_energy: float,
            (random.random() < math.exp(-de / (BOLTZMANN * temperature)))
 
 
-def calculate_distance_squared(
-        particles: list[handle_xyz.Particle]
-        ) -> list[list[float]]:
-    """Calculate pairwise squared distances.
-
-    The lennard jones function expects squared distances, this way the
-    calculation of the square and the square root for each pair can be avoided.
-
-    Examples:
-        >>> points = [handle_xyz.Particle('x', 0., 0., 0.),
-        ...           handle_xyz.Particle('x', 0., 0., 2.),]
-        >>> calculate_distance_squared(points)
-        [[0.0, 4.0], [4.0, 0.0]]
-    """
-    dist_squared = [[0. for _ in particles] for _ in particles]
-    for i, a in enumerate(particles[:-1]):
-        for j, b in enumerate(particles[i:], start=i):
-            r2 = (b.x - a.x)**2 + (b.y - a.y)**2 + (b.z - a.z)**2
-            dist_squared[i][j] = dist_squared[j][i] = r2
-    return dist_squared
-
-
 def lennard_jones(r_squared: float, r_min: float, eps: float) -> float:
     r"""Lennard-Jones law that expects the squared distance.
 
@@ -254,13 +241,14 @@ def lennard_jones(r_squared: float, r_min: float, eps: float) -> float:
     return eps * r6 * (r6 - 2)
 
 
-def get_conformation_energy(particles: list[handle_xyz.Particle],
+def get_conformation_energy(distances: handle_xyz.Matrix2D,
                             topology: handle_xyz.Topology,
                             ) -> float:
     """Calculate energy associated with a conformation.
 
     Args:
-        particles: conformation to be evaluated
+        distances: pairwise distances
+            All atoms in the conformation to be evaluated
         topology: Topology associated with that particular conformation
 
     Returns: float, Energy
@@ -268,12 +256,12 @@ def get_conformation_energy(particles: list[handle_xyz.Particle],
     Examples:
         >>> points = [handle_xyz.Particle('x', 0, 0, 0),
         ...           handle_xyz.Particle('x', 0, 0, 2),]
+        >>> distances = dist.non_periodic_squared(points)
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
         >>> top = handle_xyz.generate_topology(points, params)
-        >>> get_conformation_energy(points, top)
+        >>> get_conformation_energy(distances, top)
         -1.0
     """
-    distances = calculate_distance_squared(particles)
     energy = 0.
     for i in range(len(distances)-1):
         for j in range(i+1, len(distances)):
