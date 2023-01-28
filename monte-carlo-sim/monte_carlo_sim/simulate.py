@@ -2,11 +2,12 @@
 """
 from __future__ import annotations
 
-import concurrent.futures as cf
+# import concurrent.futures as cf
 import math
 import random
+from typing import Callable
 
-import matplotlib.pyplot as plt  # type: ignore
+# import matplotlib.pyplot as plt  # type: ignore
 
 from monte_carlo_sim import handle_xyz
 
@@ -19,6 +20,7 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
              topology: handle_xyz.Topology,
              steps: int,
              temperature: float = 300.,
+             get_step_size: Callable[[bool], float] = lambda _: 0.01,
              ):
     """Run a Monte-Carlo simulation.
 
@@ -28,12 +30,16 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
             matches the start coordinates
         steps: number of iteration
         temperature: Temperature in Kelvin
+        get_step_size: Callable returning the step size in Angstrom
+            The Callable takes a bool as argument, should be the Metropolis
+            criterion results. This allows to have more complex step_sizes,
+            e.g. an addaptive step size adjustment.
 
     Returns: list[Frame], Trajectory of the generated ensemble.
 
     Examples:
         >>> points = [handle_xyz.Particle('x', 0, 0, 0),
-        ...           handle_xyz.Particle('x', 0, 0, 2),]
+        ...           handle_xyz.Particle('x', 0, 0, 2.5),]
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
         >>> top = handle_xyz.generate_topology(points, params)
         >>> traj = simulate(start_coordinates=points,
@@ -43,6 +49,8 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
         ...                 )
         >>> type(traj)
         <class 'list'>
+        >>> len(traj)
+        10
         >>> [a == b for a, b in zip(traj[0].particles, points)]
         [True, True]
         >>> for frame in traj:
@@ -51,28 +59,38 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
     """
     n_particles = len(start_coordinates)
     energy = get_conformation_energy(start_coordinates, topology)
+    step_size = get_step_size(True)
     trajectory = [
             handle_xyz.Frame(
                 n_particles=n_particles,
-                comment=f'step 0, {temperature}, {energy}',
+                comment=f'step 0, {temperature}, {energy}, {step_size}',
                 particles=start_coordinates,
                 )
         ]
 
-    for _ in range(steps):
-        trial_structure = perturbe_structure(trajectory[-1].particles)
-        trial_energy = get_conformation_energy(trial_structure, topology)
+    while len(trajectory) < steps:
+        trial_structure = perturbe_structure(
+                particles=trajectory[-1].particles,
+                step_size=step_size,
+                )
+        trial_energy = get_conformation_energy(
+                particles=trial_structure,
+                topology=topology
+                )
 
-        if metropolis_criterion(
+        accepted = metropolis_criterion(
                 old_energy=energy,
                 new_energy=trial_energy,
                 temperature=temperature,
-                ):
+                )
+        step_size = get_step_size(accepted)
+        if accepted:
             energy = trial_energy
             n_frame = len(trajectory)
             new_frame = handle_xyz.Frame(
                     n_particles=n_particles,
-                    comment=f'step {n_frame}, {temperature}, {energy}',
+                    comment=(f'step {n_frame}, {temperature}, '
+                             f'{energy}, {step_size}'),
                     particles=trial_structure,
                 )
             trajectory.append(new_frame)
@@ -80,15 +98,15 @@ def simulate(start_coordinates: list[handle_xyz.Particle],
 
 
 def perturbe_structure(particles: list[handle_xyz.Particle],
-                       step_length: float = 0.05,
+                       step_size: float,
                        ) -> list[handle_xyz.Particle]:
     """Translate a random particle in a random direction.
 
-    The magnitude of the step is determined by the step_length.
+    The magnitude of the step is determined by the step_size.
 
     Args:
         particles: initial configuration of the system
-        step_length: magnitude of the random change
+        step_size: magnitude of the random change
 
     Returns: new conformation
 
@@ -97,7 +115,7 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
         >>> points = [handle_xyz.Particle('x', 0., 0., 0.),
         ...           handle_xyz.Particle('x', 0., 0., 2.),]
         >>> a, b = points
-        >>> c, d = perturbe_structure(points)
+        >>> c, d = perturbe_structure(points, 0.5)
         >>> (a != c and b == d) or (a == c and b != d)
         True
     """
@@ -106,7 +124,7 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
     x = random.random() - 0.5
     y = random.random() - 0.5
     z = random.random() - 0.5
-    length = math.sqrt(x*x + y*y + z*z) / step_length
+    length = math.sqrt(x*x + y*y + z*z) / step_size
 
     idx = random.randrange(len(particles))
     chosen = particles[idx]
@@ -118,6 +136,44 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
         )
     particles[idx] = perturbed
     return particles
+
+
+def addaptive_step_size(step_size: float,
+                        target_ratio: float,
+                        update_frequency: float,
+                        ) -> Callable[[bool], float]:
+    """Returns function that returns the step size.
+
+    The step size is addapted based on the metropolis acceptance ratio of
+    previous steps.
+
+    Args:
+        step_size: initial step size
+        target_ratio: ratio of accepted to declined MC steps targeted
+        update_frequency: number of steps until step size is adjusted
+
+    Returns: Function taking the metropolis result and returning the step size
+
+    Examples:
+        >>> f = addaptive_step_size(0.5, 1, 2)
+        >>> f(False)
+        0.5
+        >>> f(True)
+        0.25
+    """
+
+    decisions: list[bool] = []
+    step = {'size': step_size}
+
+    def variable_step_size(decision: bool) -> float:
+        decisions.append(decision)
+        if len(decisions) >= update_frequency:
+            ratio = sum(decisions) / (target_ratio * update_frequency)
+            _lower, ratio, _upper = sorted([0.5, ratio, 2.])
+            step['size'] = step['size'] * ratio
+            decisions.clear()
+        return step['size']
+    return variable_step_size
 
 
 def metropolis_criterion(new_energy: float,
@@ -148,7 +204,7 @@ def metropolis_criterion(new_energy: float,
 
 
 def calculate_distance_squared(
-        points: list[handle_xyz.Particle]
+        particles: list[handle_xyz.Particle]
         ) -> list[list[float]]:
     """Calculate pairwise squared distances.
 
@@ -161,9 +217,9 @@ def calculate_distance_squared(
         >>> calculate_distance_squared(points)
         [[0.0, 4.0], [4.0, 0.0]]
     """
-    dist_squared = [[0. for _ in points] for _ in points]
-    for i, a in enumerate(points[:-1]):
-        for j, b in enumerate(points[i:], start=i):
+    dist_squared = [[0. for _ in particles] for _ in particles]
+    for i, a in enumerate(particles[:-1]):
+        for j, b in enumerate(particles[i:], start=i):
             r2 = (b.x - a.x)**2 + (b.y - a.y)**2 + (b.z - a.z)**2
             dist_squared[i][j] = dist_squared[j][i] = r2
     return dist_squared
@@ -198,14 +254,14 @@ def lennard_jones(r_squared: float, r_min: float, eps: float) -> float:
     return eps * r6 * (r6 - 2)
 
 
-def get_conformation_energy(points: list[handle_xyz.Particle],
-                            parameters: handle_xyz.Topology,
+def get_conformation_energy(particles: list[handle_xyz.Particle],
+                            topology: handle_xyz.Topology,
                             ) -> float:
     """Calculate energy associated with a conformation.
 
     Args:
-        points: conformation to be evaluated
-        parameters: Topology associated with that particular conformation
+        particles: conformation to be evaluated
+        topology: Topology associated with that particular conformation
 
     Returns: float, Energy
 
@@ -217,7 +273,7 @@ def get_conformation_energy(points: list[handle_xyz.Particle],
         >>> get_conformation_energy(points, top)
         -1.0
     """
-    distances = calculate_distance_squared(points)
+    distances = calculate_distance_squared(particles)
     energy = 0.
     for i in range(len(distances)-1):
         for j in range(i+1, len(distances)):
@@ -225,8 +281,8 @@ def get_conformation_energy(points: list[handle_xyz.Particle],
             try:
                 energy += lennard_jones(
                         r_squared=r2,
-                        r_min=parameters['r_min'][i][j],
-                        eps=parameters['eps'][i][j],
+                        r_min=topology['r_min'][i][j],
+                        eps=topology['eps'][i][j],
                     )
             except ZeroDivisionError:
                 continue
@@ -234,20 +290,28 @@ def get_conformation_energy(points: list[handle_xyz.Particle],
 
 
 def main():
-    start, top = handle_xyz.load_start_structure('tests/start.xyz')
-    with cf.ProcessPoolExecutor() as executor:
-        fs = []
-        for _ in range(6):
-            fs.append(executor.submit(simulate, start, top, 100_000))
-
-        for n, future in enumerate(cf.as_completed(fs)):
-            traj = future.result()
-            with open(f'out_{n}.xyz', 'w') as traj_file:
-                traj_file.write('\n'.join(str(frame) for frame in traj))
-            en = [get_conformation_energy(frame.particles, top)
-                  for frame in traj]
-            plt.plot(en, '.', label=f'run {n}')
-    plt.show()
+    start, top = handle_xyz.load_start_structure('data/start.xyz')
+    traj = simulate(start_coordinates=start,
+                    topology=top,
+                    steps=300,
+                    temperature=300,
+                    get_step_size=addaptive_step_size(0.005, 0.35, 100)
+                    )
+    with open('data/out.xyz', 'w') as traj_file:
+        traj_file.write('\n'.join(str(frame) for frame in traj))
+#    with cf.ProcessPoolExecutor() as executor:
+#        fs = []
+#        for _ in range(6):
+#            fs.append(executor.submit(simulate, start, top, 1000))
+#
+#        for n, future in enumerate(cf.as_completed(fs)):
+#            traj = future.result()
+#            with open(f'data/out_{n}.xyz', 'w') as traj_file:
+#                traj_file.write('\n'.join(str(frame) for frame in traj))
+#            en = [get_conformation_energy(frame.particles, top)
+#                  for frame in traj]
+#            plt.plot(en, '.', label=f'run {n}')
+#    plt.show()
 
 
 if __name__ == '__main__':
