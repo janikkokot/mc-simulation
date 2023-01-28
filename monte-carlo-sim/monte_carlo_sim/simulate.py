@@ -4,13 +4,16 @@ from __future__ import annotations
 import math
 import random
 from typing import Callable
+import warnings
 
 from monte_carlo_sim import handle_xyz
 from monte_carlo_sim import distance as dist
 
 
-BOLTZMANN = 1.380649e-23  # J/K
-"""float, Boltzman constant in Joule per Kelvin."""
+BOLTZMANN = 1.
+"""float, Boltzman constant normally 1.380649e-23 J/K. But epsilon parameter
+energy depth is given in energy/Boltzmann.
+"""
 
 
 def monte_carlo(
@@ -72,34 +75,36 @@ def monte_carlo(
                 particles=start_coordinates,
                 )
         ]
+    try:
+        while len(trajectory) < steps:
+            trial_structure: list[handle_xyz.Particle] = perturbe_structure(
+                    particles=trajectory[-1].particles,
+                    step_size=step_size,
+                    )
+            distances = distance_squared(trial_structure)
+            trial_energy: float = get_conformation_energy(
+                    distances=distances,
+                    topology=topology
+                    )
 
-    while len(trajectory) < steps:
-        trial_structure: list[handle_xyz.Particle] = perturbe_structure(
-                particles=trajectory[-1].particles,
-                step_size=step_size,
-                )
-        distances = distance_squared(trial_structure)
-        trial_energy: float = get_conformation_energy(
-                distances=distances,
-                topology=topology
-                )
-
-        accepted: bool = metropolis_criterion(
-                old_energy=energy,
-                new_energy=trial_energy,
-                temperature=temperature,
-                )
-        step_size = get_step_size(accepted)
-        if accepted:
-            energy = trial_energy
-            n_frame = len(trajectory)
-            new_frame = handle_xyz.Frame(
-                    n_particles=n_particles,
-                    comment=(f'step {n_frame}, {temperature}, '
-                             f'{energy}, {step_size}'),
-                    particles=trial_structure,
-                )
-            trajectory.append(new_frame)
+            accepted: bool = metropolis_criterion(
+                    old_energy=energy,
+                    new_energy=trial_energy,
+                    temperature=temperature,
+                    )
+            step_size = get_step_size(accepted)
+            if accepted:
+                energy = trial_energy
+                n_frame = len(trajectory)
+                new_frame = handle_xyz.Frame(
+                        n_particles=n_particles,
+                        comment=(f'step {n_frame}, {temperature}, '
+                                 f'{energy}, {step_size}'),
+                        particles=trial_structure,
+                    )
+                trajectory.append(new_frame)
+    except BaseException as err:
+        warnings.warn(f'Something unexpected happened: {err!r}')
     return trajectory
 
 
@@ -183,7 +188,7 @@ def addaptive_step_size(step_size: float,
         >>> f(False)
         0.5
         >>> f(True)
-        0.25
+        0.4
     """
 
     decisions: list[bool] = []
@@ -192,9 +197,11 @@ def addaptive_step_size(step_size: float,
     def variable_step_size(decision: bool) -> float:
         decisions.append(decision)
         if len(decisions) >= update_frequency:
-            ratio = sum(decisions) / (target_ratio * update_frequency)
-            _lower, ratio, _upper = sorted([0.5, ratio, 2.])
-            step['size'] = step['size'] * ratio
+            ratio = math.sqrt(
+                    sum(decisions) / (target_ratio * update_frequency)
+                    )
+            _lower, ratio, _upper = sorted([0.8, ratio, 1.2])
+            step['size'] = min(step['size'] * ratio, 1)
             decisions.clear()
         return step['size']
     return variable_step_size

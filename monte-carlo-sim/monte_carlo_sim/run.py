@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 
 from pathlib import Path
+import tomli
 
 from monte_carlo_sim import distance as dist
 from monte_carlo_sim import handle_xyz, simulate
@@ -69,9 +70,10 @@ def create_parser():
                         help='Optional parameter file from which the \
                               parameters for the simulation will be taken.',
                         )
-    parser.add_argument('--append', action='store_true', default=False,
+    parser.add_argument('--restart', action='store_true', default=False,
                         help='Append to outputfile instead of overwriting it \
-                              (default: %(default)s)',
+                              and use last frame of inputfile as start \
+                              structure. (default: %(default)s)',
                         )
     return parser
 
@@ -80,17 +82,29 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    start_particles, topology = handle_xyz.load_start_structure(
-            xyz_file=args.c,
-            parameter_file=args.parameters,
+    # read parameter file
+    with open(args.parameters, 'rb') as parameter_file:
+        parameters = tomli.load(parameter_file)
+
+    # read coordinate file
+    with open(args.c, 'r') as coordinate_file:
+        frames = handle_xyz.read_xyz(coordinate_file)
+        start_frame = frames[0] if not args.restart else frames[-1]
+    start_particles = start_frame.particles
+
+    # generate matching topology
+    topology = handle_xyz.generate_topology(
+            coordinates=start_particles,
+            parameters=parameters,
             )
 
+    # choose proper functions based on command line arguments
     distance_fn = (dist.periodic_squared(args.density, len(start_particles))
                    if args.density else dist.non_periodic_squared)
+    step_size = (simulate.plain_step_size(args.stepsize) if args.fixed else
+                 simulate.addaptive_step_size(args.stepsize, *args.addaptive))
 
-    step_size = (simulate.plain_step_size(args.step_size) if args.fixed else
-                 simulate.addaptive_step_size(args.step_size, *args.addaptive))
-
+    # calculate trajectory using monte carlo
     trajectory = simulate.monte_carlo(
             start_coordinates=start_particles,
             topology=topology,
@@ -99,7 +113,7 @@ def main():
             distance_squared=distance_fn,
             get_step_size=step_size,
             )
-    with open(args.x, 'w' if not args.append else 'a') as traj_file:
+    with open(args.x, 'w' if not args.restart else 'a') as traj_file:
         traj_file.write('\n'.join(str(frame) for frame in trajectory))
 
 

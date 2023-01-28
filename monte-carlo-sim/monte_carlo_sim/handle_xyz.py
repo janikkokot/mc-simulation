@@ -2,12 +2,7 @@
 from __future__ import annotations
 
 import math
-from os import PathLike
-from pathlib import Path
-import tomli
 from typing import Iterable, NamedTuple, TypeAlias
-
-_base_path = Path(__file__).parent
 
 
 class Particle(NamedTuple):
@@ -226,32 +221,3 @@ def generate_topology(coordinates: list[Particle],
             'eps': t_eps,
         }
     return topology
-
-
-def load_start_structure(
-        xyz_file: str | PathLike,
-        parameter_file: str | PathLike = _base_path / 'parameters.toml',
-        ) -> tuple[list[Particle], Topology]:
-    """Read XYZ File and generate a start Frame with a correspoding topology.
-
-    Args:
-        xyz_file: file in XYZ format
-            contains coordinate and atomtype information
-        parameter (optional): parameter file in toml format
-            has the general format of
-                [Atomtype]
-                parameter = value
-            if not provided, use the default parameter file `parameters.toml`.
-
-    Returns: list[Particle], Topology
-        list with all particles and a matching topology.
-    """
-    with open(xyz_file, 'r') as coordinate_file:
-        first_frame = read_xyz(coordinate_file)[0]
-    with open(parameter_file, 'rb') as pf:
-        parameters = tomli.load(pf)
-    topology = generate_topology(
-            coordinates=first_frame.particles,
-            parameters=parameters,
-            )
-    return first_frame.particles, topology
