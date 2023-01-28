@@ -46,7 +46,7 @@ def create_parser():
                        )
     steps.add_argument('--addaptive', nargs=2,
                        required=False, metavar=('RATIO', 'INTERVAL'),
-                       default=(0.35, 100), type=tuple,
+                       default=(0.35, 100), type=float,
                        help='Parameters for the addaptive step size scaling. \
                              The RATIO denotes the fraction of steps that \
                              should be accepted. The INTERVAL denotes the \
@@ -54,13 +54,21 @@ def create_parser():
                              (default: %(default)s)'
                        )
 
-    parser.add_argument('--density', type=float, default=None,
-                        metavar='PARTICLES/NM³',
-                        help='Density of the simulation box in particles/nm³ \
-                              If density is provided, periodic boundary \
-                              conditions will be used, otherwise not. \
-                              (default: %(default)s)',
-                        )
+    periodic = parser.add_mutually_exclusive_group()
+    periodic.add_argument('--density', type=float, default=None,
+                          metavar='PARTICLES/NM³',
+                          help='Density of the simulation box in particles/nm³ \
+                                If density is provided, periodic boundary \
+                                conditions will be used, otherwise not. \
+                                (default: %(default)s)',
+                          )
+    periodic.add_argument('--box', type=float, default=None,
+                          metavar='ANGSTROM',
+                          help='Boxsize of simulation box in Angstrom. If \
+                                boxsize is provided, periodic boundary \
+                                conditions will be used, otherwise not. \
+                                (default: %s(default)s)',
+                          )
 
     parser.add_argument('--parameters',
                         required=False,
@@ -99,8 +107,14 @@ def main():
             )
 
     # choose proper functions based on command line arguments
-    distance_fn = (dist.periodic_squared(args.density, len(start_particles))
-                   if args.density else dist.non_periodic_squared)
+    if args.density:
+        distance_fn = dist.periodic_squared(args.density, len(start_particles))
+    elif args.box:
+        density = len(start_particles) / (args.box**3 * 1e-3)
+        distance_fn = dist.periodic_squared(density, len(start_particles))
+    else:
+        distance_fn = dist.non_periodic_squared
+
     step_size = (simulate.plain_step_size(args.stepsize) if args.fixed else
                  simulate.addaptive_step_size(args.stepsize, *args.addaptive))
 
