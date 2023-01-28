@@ -1,12 +1,9 @@
 """Simulation and energy calculations"""
 from __future__ import annotations
 
-# import concurrent.futures as cf
 import math
 import random
 from typing import Callable
-
-# import matplotlib.pyplot as plt  # type: ignore
 
 from monte_carlo_sim import handle_xyz
 from monte_carlo_sim import distance as dist
@@ -16,7 +13,7 @@ BOLTZMANN = 1.380649e-23  # J/K
 """float, Boltzman constant in Joule per Kelvin."""
 
 
-def simulate(
+def monte_carlo(
         start_coordinates: list[handle_xyz.Particle],
         topology: handle_xyz.Topology,
         steps: int,
@@ -48,7 +45,7 @@ def simulate(
         ...           handle_xyz.Particle('x', 0, 0, 2.5),]
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
         >>> top = handle_xyz.generate_topology(points, params)
-        >>> traj = simulate(start_coordinates=points,
+        >>> traj = monte_carlo(start_coordinates=points,
         ...                 topology=top,
         ...                 steps=10, # usually in the range of millions
         ...                 temperature=300, #K
@@ -147,6 +144,24 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
     return particles
 
 
+def plain_step_size(step_size: float):
+    """Returns function that returns the step size no matter what.
+
+    Args:
+        step_size: initial step size in Angstrom
+
+    Returns: Function taking a boolean and always return the same step size.
+
+    Examples:
+        >>> f = plain_step_size(0.5)
+        >>> f(False)
+        0.5
+        >>> f(True)
+        0.5
+    """
+    return lambda _: step_size
+
+
 def addaptive_step_size(step_size: float,
                         target_ratio: float,
                         update_frequency: float,
@@ -157,11 +172,11 @@ def addaptive_step_size(step_size: float,
     previous steps.
 
     Args:
-        step_size: initial step size
+        step_size: initial step size in Angstrom
         target_ratio: ratio of accepted to declined MC steps targeted
         update_frequency: number of steps until step size is adjusted
 
-    Returns: Function taking the metropolis result and returning the step size
+    Returns: Function taking the metropolis result and returning the step size.
 
     Examples:
         >>> f = addaptive_step_size(0.5, 1, 2)
@@ -275,32 +290,3 @@ def get_conformation_energy(distances: handle_xyz.Matrix2D,
             except ZeroDivisionError:
                 continue
     return energy
-
-
-def main():
-    start, top = handle_xyz.load_start_structure('data/start.xyz')
-    traj = simulate(start_coordinates=start,
-                    topology=top,
-                    steps=300,
-                    temperature=300,
-                    get_step_size=addaptive_step_size(0.005, 0.35, 100)
-                    )
-    with open('data/out.xyz', 'w') as traj_file:
-        traj_file.write('\n'.join(str(frame) for frame in traj))
-#    with cf.ProcessPoolExecutor() as executor:
-#        fs = []
-#        for _ in range(6):
-#            fs.append(executor.submit(simulate, start, top, 1000))
-#
-#        for n, future in enumerate(cf.as_completed(fs)):
-#            traj = future.result()
-#            with open(f'data/out_{n}.xyz', 'w') as traj_file:
-#                traj_file.write('\n'.join(str(frame) for frame in traj))
-#            en = [get_conformation_energy(frame.particles, top)
-#                  for frame in traj]
-#            plt.plot(en, '.', label=f'run {n}')
-#    plt.show()
-
-
-if __name__ == '__main__':
-    main()
