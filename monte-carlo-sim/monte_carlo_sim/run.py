@@ -35,6 +35,7 @@ def create_parser():
                               (default: %(default)s)',
                         )
     parser.add_argument('--stepsize',
+                        metavar='ANGSTROM',
                         default=0.001, type=float,
                         help='Initial step size (default: %(default)s)',
                         )
@@ -53,6 +54,7 @@ def create_parser():
                        )
 
     parser.add_argument('--density', type=float, default=None,
+                        metavar='PARTICLES/NM³',
                         help='Density of the simulation box in particles/nm³ \
                               If density is provided, periodic boundary \
                               conditions will be used, otherwise not. \
@@ -67,7 +69,10 @@ def create_parser():
                         help='Optional parameter file from which the \
                               parameters for the simulation will be taken.',
                         )
-    parser.add_argument('--append', action='store_true', default=False)
+    parser.add_argument('--append', action='store_true', default=False,
+                        help='Append to outputfile instead of overwriting it \
+                              (default: %(default)s)',
+                        )
     return parser
 
 
