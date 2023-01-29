@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from typing import Iterable, NamedTuple, TypeAlias
+from typing import SupportsFloat as Numeric
 
 
 class Particle(NamedTuple):
@@ -89,7 +90,7 @@ class Frame(NamedTuple):
 
 # Particle = namedtuple('Particle', ['name', 'x', 'y', 'z'])
 # Frame = namedtuple('Frame', ['n_particles', 'comment', 'particles'])
-Matrix2D: TypeAlias = list[list[float]]
+Matrix2D: TypeAlias = list[list[Numeric]]
 
 
 Topology: TypeAlias = dict[str, Matrix2D]

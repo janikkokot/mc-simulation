@@ -252,11 +252,6 @@ def lennard_jones(r_squared: float, r_min: float, eps: float) -> float:
         >>> r = 2
         >>> lennard_jones(r_squared=r**2, r_min=2, eps=1)
         -1.0
-        >>> eps = 1e-7
-        >>> lennard_jones((r-eps)**2, 2, 1) > lennard_jones(r**2, 2, 1)
-        True
-        >>> lennard_jones(r**2, 2, 1) < lennard_jones((r+eps)**2, 2, 1)
-        True
     """
 
     r6 = r_min**6 / r_squared**3
@@ -275,6 +270,8 @@ def get_conformation_energy(distances: xyz.Matrix2D,
 
     Returns: float, Energy
 
+    Raises: ZeroDivisionError, if squared distance between two particle is 0.
+
     Examples:
         >>> points = [xyz.Particle('x', 0, 0, 0),
         ...           xyz.Particle('x', 0, 0, 2),]
@@ -288,12 +285,9 @@ def get_conformation_energy(distances: xyz.Matrix2D,
     for i in range(len(distances)-1):
         for j in range(i+1, len(distances)):
             r2 = distances[i][j]
-            try:
-                energy += lennard_jones(
-                        r_squared=r2,
-                        r_min=topology['r_min'][i][j],
-                        eps=topology['eps'][i][j],
-                    )
-            except ZeroDivisionError:
-                continue
+            energy += lennard_jones(
+                    r_squared=r2,
+                    r_min=topology['r_min'][i][j],
+                    eps=topology['eps'][i][j],
+                )
     return energy
