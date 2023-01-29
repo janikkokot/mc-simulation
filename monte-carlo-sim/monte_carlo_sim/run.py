@@ -67,7 +67,7 @@ def create_parser():
                           help='Boxsize of simulation box in Angstrom. If \
                                 boxsize is provided, periodic boundary \
                                 conditions will be used, otherwise not. \
-                                (default: %s(default)s)',
+                                (default: %(default)s)',
                           )
 
     parser.add_argument('--parameters',
