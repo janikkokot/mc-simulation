@@ -87,4 +87,4 @@ def test_monte_carlo_integration(steps, kwargs):
                                 temperature=300,
                                 **kwargs
                                 )
-    assert len(traj) == steps
+    assert sum(1 for _ in traj) == steps + 1

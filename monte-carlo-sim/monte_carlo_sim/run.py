@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import itertools
 
 from pathlib import Path
 import tomli
@@ -54,6 +55,13 @@ def create_parser():
                              frequency at which the step size is updated. \
                              (default: %(default)s)'
                        )
+
+    parser.add_argument('--stride',
+                        metavar='FRAME',
+                        default=1, type=int,
+                        help="Every n'th frame will be written to the \
+                              trajectory %(default)s",
+                        )
 
     periodic = parser.add_mutually_exclusive_group()
     periodic.add_argument('--density', type=float, default=None,
@@ -129,7 +137,8 @@ def main():
             get_step_size=step_size,
             )
     with open(args.x, 'w' if not args.restart else 'a') as traj_file:
-        traj_file.write('\n'.join(str(frame) for frame in trajectory))
+        for frame in itertools.islice(trajectory, None, None, args.stride):
+            traj_file.write(f'{frame}\n')
 
 
 if __name__ == '__main__':

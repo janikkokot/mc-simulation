@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Callable
-import warnings
+from typing import Callable, Generator
 
 from monte_carlo_sim import handle_xyz as xyz
 from monte_carlo_sim import distance as dist
@@ -23,7 +22,7 @@ def monte_carlo(
         temperature: float = 300.,
         distance_squared: dist.DistanceFunction = dist.non_periodic_squared,
         get_step_size: Callable[[bool], float] = lambda _: 0.01,
-        ) -> list[xyz.Frame]:
+        ) -> Generator[xyz.Frame, None, None]:
     """Run a Monte-Carlo simulation.
 
     Args:
@@ -41,71 +40,72 @@ def monte_carlo(
             criterion results. This allows to have more complex step_sizes,
             e.g. an addaptive step size adjustment.
 
-    Returns: list[Frame], Trajectory of the generated ensemble.
+    Returns: Generator[Frame], lazy Trajectory of the generated ensemble.
 
     Examples:
         >>> points = [xyz.Particle('x', 0, 0, 0),
         ...           xyz.Particle('x', 0, 0, 2.5),]
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
         >>> top = xyz.generate_topology(points, params)
-        >>> traj = monte_carlo(start_coordinates=points,
+        >>> traj_gen = monte_carlo(start_coordinates=points,
         ...                 topology=top,
         ...                 steps=10, # usually in the range of millions
         ...                 temperature=300, #K
         ...                 )
-        >>> type(traj)
-        <class 'list'>
-        >>> len(traj)
-        10
+        >>> type(traj_gen)
+        <class 'generator'>
+        >>> traj = list(traj_gen)
+        >>> len(traj)  # because the start frame also gets yielded
+        11
         >>> [a == b for a, b in zip(traj[0].particles, points)]
         [True, True]
         >>> for frame in traj:
         ...     for particle in frame.particles:
         ...         assert particle.name == 'x'
     """
+    yielded_steps = 0
+
     n_particles = len(start_coordinates)
     step_size = get_step_size(True)
 
     distances = distance_squared(start_coordinates)
     energy = get_conformation_energy(distances, topology)
-    trajectory = [
-            xyz.Frame(
+    frame = xyz.Frame(
                 n_particles=n_particles,
                 comment=f'step 0, {temperature}, {energy}, {step_size}',
                 particles=start_coordinates,
                 )
-        ]
-    try:
-        while len(trajectory) < steps:
-            trial_structure: list[xyz.Particle] = perturbe_structure(
-                    particles=trajectory[-1].particles,
-                    step_size=step_size,
-                    )
-            distances = distance_squared(trial_structure)
-            trial_energy: float = get_conformation_energy(
-                    distances=distances,
-                    topology=topology
-                    )
+    yield frame
+    yielded_steps += 1
 
-            accepted: bool = metropolis_criterion(
-                    old_energy=energy,
-                    new_energy=trial_energy,
-                    temperature=temperature,
-                    )
-            step_size = get_step_size(accepted)
-            if accepted:
-                energy = trial_energy
-                n_frame = len(trajectory)
-                new_frame = xyz.Frame(
-                        n_particles=n_particles,
-                        comment=(f'step {n_frame}, {temperature}, '
-                                 f'{energy}, {step_size}'),
-                        particles=trial_structure,
-                    )
-                trajectory.append(new_frame)
-    except BaseException as err:
-        warnings.warn(f'Something unexpected happened: {err!r}')
-    return trajectory
+    while yielded_steps <= steps:
+        trial_structure: list[xyz.Particle] = perturbe_structure(
+                particles=frame.particles,
+                step_size=step_size,
+                )
+        distances = distance_squared(trial_structure)
+        trial_energy: float = get_conformation_energy(
+                distances=distances,
+                topology=topology
+                )
+
+        accepted: bool = metropolis_criterion(
+                old_energy=energy,
+                new_energy=trial_energy,
+                temperature=temperature,
+                )
+        step_size = get_step_size(accepted)
+        if accepted:
+            energy = trial_energy
+            n_frame = yielded_steps
+            frame = xyz.Frame(
+                    n_particles=n_particles,
+                    comment=(f'step {n_frame}, {temperature}, '
+                             f'{energy}, {step_size}'),
+                    particles=trial_structure,
+                )
+            yield frame
+            yielded_steps += 1
 
 
 def perturbe_structure(particles: list[xyz.Particle],
