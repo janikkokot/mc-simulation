@@ -1,10 +1,10 @@
 from typing import TypeAlias, Callable
-from monte_carlo_sim import handle_xyz
+from monte_carlo_sim import handle_xyz as xyz
 
 
 DistanceFunction: TypeAlias = Callable[
-        [list[handle_xyz.Particle]],
-        handle_xyz.Matrix2D,
+        [list[xyz.Particle]],
+        xyz.Matrix2D,
         ]
 
 
@@ -23,8 +23,8 @@ def periodic_squared(density: float,
     Returns: Function calculating periodic pairwise squared distances.
 
     Examples:
-        >>> points = [handle_xyz.Particle('x', 0., 0., -4.),
-        ...           handle_xyz.Particle('x', 0., 0., 4.),]
+        >>> points = [xyz.Particle('x', 0., 0., -4.),
+        ...           xyz.Particle('x', 0., 0., 4.),]
         >>> f = periodic_squared(density=2, n_particles=2)
         >>> f(points)
         [[0.0, 4.0], [4.0, 0.0]]
@@ -36,7 +36,7 @@ def periodic_squared(density: float,
         dist = b-a
         return dist - box_side * round(dist / box_side)
 
-    def distance_squared(particles: list[handle_xyz.Particle]):
+    def distance_squared(particles: list[xyz.Particle]):
         """Calculate pairwise squared distances.
 
         The lennard jones function expects squared distances, this way the
@@ -60,8 +60,8 @@ def periodic_squared(density: float,
 
 
 def non_periodic_squared(
-        particles: list[handle_xyz.Particle]
-        ) -> handle_xyz.Matrix2D:
+        particles: list[xyz.Particle]
+        ) -> xyz.Matrix2D:
     """Calculate pairwise squared distances.
 
     The lennard jones function expects squared distances, this way the
@@ -73,8 +73,8 @@ def non_periodic_squared(
     Returns: Matrix2D, pairwise distances
 
     Examples:
-        >>> points = [handle_xyz.Particle('x', 0., 0., -4.),
-        ...           handle_xyz.Particle('x', 0., 0., 4.),]
+        >>> points = [xyz.Particle('x', 0., 0., -4.),
+        ...           xyz.Particle('x', 0., 0., 4.),]
         >>> non_periodic_squared(points)
         [[0.0, 64.0], [64.0, 0.0]]
     """

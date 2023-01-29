@@ -4,7 +4,8 @@ from pathlib import Path
 import tomli
 
 from monte_carlo_sim import distance as dist
-from monte_carlo_sim import handle_xyz, simulate
+from monte_carlo_sim import handle_xyz as xyz
+from monte_carlo_sim import simulate
 
 
 def create_parser():
@@ -96,12 +97,12 @@ def main():
 
     # read coordinate file
     with open(args.c, 'r') as coordinate_file:
-        frames = handle_xyz.read_xyz(coordinate_file)
+        frames = xyz.read_xyz(coordinate_file)
         start_frame = frames[0] if not args.restart else frames[-1]
     start_particles = start_frame.particles
 
     # generate matching topology
-    topology = handle_xyz.generate_topology(
+    topology = xyz.generate_topology(
             coordinates=start_particles,
             parameters=parameters,
             )

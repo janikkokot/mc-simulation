@@ -42,11 +42,8 @@ The package contains three modules:
 | module     | purpose | up for evaluation |
 |------------|---------|-------------------|
 |`handle_xyz`| xyz file reading and writing utilities | :heavy_check_mark: |
-|------------|----------------------------------------|--------------------|
 |`distance`  | non-periodic and periodic boundary distance calculation | :heavy_check_mark: |
-|------------|---------------------------------------------------------|--------------------|
 |`simulate`  | energy calculation and monte carlo algorithm | :wavy_dash:|
-|------------|----------------------------------------------|------------|
 
 The `run` script is responsible for the CLI. The `toml`-files are parameter-files. 
 Currently only parameters for Argon and Methane are defined.

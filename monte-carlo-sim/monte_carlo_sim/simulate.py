@@ -6,7 +6,7 @@ import random
 from typing import Callable
 import warnings
 
-from monte_carlo_sim import handle_xyz
+from monte_carlo_sim import handle_xyz as xyz
 from monte_carlo_sim import distance as dist
 
 
@@ -17,13 +17,13 @@ energy depth is given in energy/Boltzmann.
 
 
 def monte_carlo(
-        start_coordinates: list[handle_xyz.Particle],
-        topology: handle_xyz.Topology,
+        start_coordinates: list[xyz.Particle],
+        topology: xyz.Topology,
         steps: int,
         temperature: float = 300.,
         distance_squared: dist.DistanceFunction = dist.non_periodic_squared,
         get_step_size: Callable[[bool], float] = lambda _: 0.01,
-        ) -> list[handle_xyz.Frame]:
+        ) -> list[xyz.Frame]:
     """Run a Monte-Carlo simulation.
 
     Args:
@@ -44,10 +44,10 @@ def monte_carlo(
     Returns: list[Frame], Trajectory of the generated ensemble.
 
     Examples:
-        >>> points = [handle_xyz.Particle('x', 0, 0, 0),
-        ...           handle_xyz.Particle('x', 0, 0, 2.5),]
+        >>> points = [xyz.Particle('x', 0, 0, 0),
+        ...           xyz.Particle('x', 0, 0, 2.5),]
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
-        >>> top = handle_xyz.generate_topology(points, params)
+        >>> top = xyz.generate_topology(points, params)
         >>> traj = monte_carlo(start_coordinates=points,
         ...                 topology=top,
         ...                 steps=10, # usually in the range of millions
@@ -69,7 +69,7 @@ def monte_carlo(
     distances = distance_squared(start_coordinates)
     energy = get_conformation_energy(distances, topology)
     trajectory = [
-            handle_xyz.Frame(
+            xyz.Frame(
                 n_particles=n_particles,
                 comment=f'step 0, {temperature}, {energy}, {step_size}',
                 particles=start_coordinates,
@@ -77,7 +77,7 @@ def monte_carlo(
         ]
     try:
         while len(trajectory) < steps:
-            trial_structure: list[handle_xyz.Particle] = perturbe_structure(
+            trial_structure: list[xyz.Particle] = perturbe_structure(
                     particles=trajectory[-1].particles,
                     step_size=step_size,
                     )
@@ -96,7 +96,7 @@ def monte_carlo(
             if accepted:
                 energy = trial_energy
                 n_frame = len(trajectory)
-                new_frame = handle_xyz.Frame(
+                new_frame = xyz.Frame(
                         n_particles=n_particles,
                         comment=(f'step {n_frame}, {temperature}, '
                                  f'{energy}, {step_size}'),
@@ -108,9 +108,9 @@ def monte_carlo(
     return trajectory
 
 
-def perturbe_structure(particles: list[handle_xyz.Particle],
+def perturbe_structure(particles: list[xyz.Particle],
                        step_size: float,
-                       ) -> list[handle_xyz.Particle]:
+                       ) -> list[xyz.Particle]:
     """Translate a random particle in a random direction.
 
     The magnitude of the step is determined by the step_size.
@@ -123,8 +123,8 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
 
 
     Examples:
-        >>> points = [handle_xyz.Particle('x', 0., 0., 0.),
-        ...           handle_xyz.Particle('x', 0., 0., 2.),]
+        >>> points = [xyz.Particle('x', 0., 0., 0.),
+        ...           xyz.Particle('x', 0., 0., 2.),]
         >>> a, b = points
         >>> c, d = perturbe_structure(points, 0.5)
         >>> (a != c and b == d) or (a == c and b != d)
@@ -139,7 +139,7 @@ def perturbe_structure(particles: list[handle_xyz.Particle],
 
     idx = random.randrange(len(particles))
     chosen = particles[idx]
-    perturbed = handle_xyz.Particle(
+    perturbed = xyz.Particle(
             name=chosen.name,
             x=chosen.x+x/length,
             y=chosen.y+y/length,
@@ -263,8 +263,8 @@ def lennard_jones(r_squared: float, r_min: float, eps: float) -> float:
     return eps * r6 * (r6 - 2)
 
 
-def get_conformation_energy(distances: handle_xyz.Matrix2D,
-                            topology: handle_xyz.Topology,
+def get_conformation_energy(distances: xyz.Matrix2D,
+                            topology: xyz.Topology,
                             ) -> float:
     """Calculate energy associated with a conformation.
 
@@ -276,11 +276,11 @@ def get_conformation_energy(distances: handle_xyz.Matrix2D,
     Returns: float, Energy
 
     Examples:
-        >>> points = [handle_xyz.Particle('x', 0, 0, 0),
-        ...           handle_xyz.Particle('x', 0, 0, 2),]
+        >>> points = [xyz.Particle('x', 0, 0, 0),
+        ...           xyz.Particle('x', 0, 0, 2),]
         >>> distances = dist.non_periodic_squared(points)
         >>> params = {'x' : {'r_min': 2, 'eps': 1}}
-        >>> top = handle_xyz.generate_topology(points, params)
+        >>> top = xyz.generate_topology(points, params)
         >>> get_conformation_energy(distances, top)
         -1.0
     """
