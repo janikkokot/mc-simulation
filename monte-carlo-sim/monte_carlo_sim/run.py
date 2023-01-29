@@ -1,7 +1,8 @@
 from argparse import ArgumentParser
+import sys
 import itertools
-
 from pathlib import Path
+
 import tomli
 
 from monte_carlo_sim import distance as dist
@@ -9,7 +10,7 @@ from monte_carlo_sim import handle_xyz as xyz
 from monte_carlo_sim import simulate
 
 
-def create_parser():
+def create_parser(args):
     parser = ArgumentParser(
             prog='montecarlo',
             description='Run Monte Carlo Simulations from XYZ-files',
@@ -92,12 +93,11 @@ def create_parser():
                               and use last frame of inputfile as start \
                               structure. (default: %(default)s)',
                         )
-    return parser
+    return parser.parse_args(args)
 
 
 def main():
-    parser = create_parser()
-    args = parser.parse_args()
+    args = create_parser(sys.argv[1:])
 
     # read parameter file
     with open(args.parameters, 'rb') as parameter_file:
